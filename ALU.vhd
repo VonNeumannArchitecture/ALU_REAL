@@ -1,6 +1,6 @@
 ----------------------------------------------------------------------------------
 -- Company: HS Mannheim
--- Engineer: JÃ¼rgen Altszeimer
+-- Engineer: Jürgen Altszeimer
 -- 
 -- Create Date: 27.04.2016 11:37:19
 -- Design Name: 
@@ -44,29 +44,47 @@ entity ALU is
 end ALU;
 
 architecture Behavioral of ALU is
-    constant CMD_NOP : STD_LOGIC_VECTOR(3 downto 0) := "0000";
-    constant CMD_WRITE : STD_LOGIC_VECTOR(3 downto 0) := "0011";
-    constant CMD_LOAD : STD_LOGIC_VECTOR(3 downto 0) := "0001";
-    constant CMD_SHIFT_R : STD_LOGIC_VECTOR(3 downto 0) := "1001";
-    constant CMD_SHIFT_L : STD_LOGIC_VECTOR(3 downto 0) := "1010";
-    constant CMD_ADD : STD_LOGIC_VECTOR(3 downto 0) := "1011";
-    constant CMD_SUB : STD_LOGIC_VECTOR(3 downto 0) := "1100";
-    constant CMD_AND : STD_LOGIC_VECTOR(3 downto 0) := "0101";
-    constant CMD_OR : STD_LOGIC_VECTOR(3 downto 0) := "0110";
-    constant CMD_INV : STD_LOGIC_VECTOR(3 downto 0) := "0111";
+    constant C_NOP : STD_LOGIC_VECTOR(3 downto 0) := "0000";
+    constant C_WRITE : STD_LOGIC_VECTOR(3 downto 0) := "0011";
+    constant C_LOAD : STD_LOGIC_VECTOR(3 downto 0) := "0001";
+    constant C_SHIFT_R : STD_LOGIC_VECTOR(3 downto 0) := "1001";
+    constant C_SHIFT_L : STD_LOGIC_VECTOR(3 downto 0) := "1010";
+    constant C_ADD : STD_LOGIC_VECTOR(3 downto 0) := "1011";
+    constant C_SUB : STD_LOGIC_VECTOR(3 downto 0) := "1100";
+    constant C_AND : STD_LOGIC_VECTOR(3 downto 0) := "0101";
+    constant C_OR : STD_LOGIC_VECTOR(3 downto 0) := "0110";
+    constant C_INV : STD_LOGIC_VECTOR(3 downto 0) := "0111";
        
-    signal akku : STD_LOGIC_VECTOR (datawidth downto 0) := (others => '0'); 
-    signal init : STD_LOGIC := '1';
+    signal akku : STD_LOGIC_VECTOR (datawidth-1 downto 0) := (others => '0'); 
     
-    alias CARRY_F : STD_LOGIC is status(0);
-    alias ZERO_F : STD_LOGIC is status(1);
-    alias NEGATIVE_F : STD_LOGIC is status(2);
-    alias OVERFLOW_F : STD_LOGIC is status(3);  
+    type command_state_name is (CMD_NOP, CMD_WRITE, CMD_LOAD, CMD_SHIFT_R, CMD_SHIFT_L, CMD_ADD, CMD_SUB, CMD_AND, CMD_OR, CMD_INV);
+    signal command_state : command_state_name;
+        
+    signal carry : STD_LOGIC := '0';
+    signal zero : STD_LOGIC := '0';
+    signal negative : STD_LOGIC := '0';
+    signal overflow : STD_LOGIC := '0';
     
 begin
+    status(0) <= carry;
+    status(1) <= zero;
+    status(2) <= negative;
+    status(3) <= overflow;
+    
+    with command select
+        command_state <= CMD_WRITE when C_WRITE,
+                         CMD_LOAD when C_LOAD,
+                         CMD_SHIFT_L when C_SHIFT_L,
+                         CMD_SHIFT_R when C_SHIFT_R,
+                         CMD_ADD when C_ADD,
+                         CMD_SUB when C_SUB,
+                         CMD_AND when C_AND,
+                         CMD_OR when C_OR,
+                         CMD_INV when C_INV,
+                         CMD_NOP when others;
 
 alu_proc : process(clk)   
-    variable operand : STD_LOGIC_VECTOR(datawidth downto 0) := (others => '0');
+    variable operand : STD_LOGIC_VECTOR(datawidth-1 downto 0) := (others => '0');
     variable result : STD_LOGIC_VECTOR(datawidth downto 0) := (others => '0');
     variable updateStatus : STD_LOGIC_VECTOR(3 downto 0) := "0110";
     
@@ -74,12 +92,7 @@ alu_proc : process(clk)
     alias UPDATE_ZERO : STD_LOGIC is updateStatus(1);
     alias UPDATE_NEGATIVE : STD_LOGIC is updateStatus(2);
     alias UPDATE_OVERFLOW : STD_LOGIC is updateStatus(3);
-begin
-    if init = '1' then
-        init <= '0';
-        status <= "0000";
-    end if;
-
+begin   
     if rising_edge(clk) then
         data <= (data'range => 'Z');
         updateStatus := "0110";
@@ -87,57 +100,57 @@ begin
         operand := (operand'range => '0');
         
         case command is
-            when CMD_NOP =>
+            when C_NOP =>
                 UPDATE_ZERO := '0';
                 UPDATE_NEGATIVE := '0';
                 
-            when CMD_WRITE =>                   
-                data <= akku(datawidth-1 downto 0);
+            when C_WRITE =>                
+                data <= akku;
                 UPDATE_ZERO := '0';
                 UPDATE_NEGATIVE := '0';
                 
-            when CMD_LOAD =>
+            when C_LOAD =>
                 result := '0' & data;
-                akku <= result;
+                akku <= result(datawidth-1 downto 0);
                 UPDATE_CARRY := '1';
                 
-            when CMD_SHIFT_R =>
+            when C_SHIFT_R =>
                 result := akku(0) & '0' & akku(datawidth-1 downto 1);
-                akku <= result;
+                akku <= result(datawidth-1 downto 0);
                 UPDATE_CARRY := '1';
                 
-            when CMD_SHIFT_L =>
-                result := akku(datawidth-1 downto 0) & '0';
-                akku <= result;
+            when C_SHIFT_L =>
+                result := akku & '0';
+                akku <= result(datawidth-1 downto 0);
                 UPDATE_CARRY := '1';
                 
-            when CMD_ADD =>
-                operand := '0' & data;
-                result := akku + operand;
-                akku <= result;
-                UPDATE_CARRY := '1';
-                UPDATE_OVERFLOW := '1';
-                
-            when CMD_SUB =>
-                operand := '0' & (not(data) + 1);
-                result := akku + operand;
-                akku <= result;
+            when C_ADD =>
+                operand := data;
+                result := ('0' & akku) + ('0' & operand);
+                akku <= result(datawidth-1 downto 0);
                 UPDATE_CARRY := '1';
                 UPDATE_OVERFLOW := '1';
                 
-            when CMD_AND =>
-                operand := '0' & data;
-                result := akku AND operand;
-                akku <= result;
+            when C_SUB =>
+                operand := (not(data) + 1);
+                result := ('0' & akku) + ('0' & operand);
+                akku <= result(datawidth-1 downto 0);
+                UPDATE_CARRY := '1';
+                UPDATE_OVERFLOW := '1';
                 
-            when CMD_OR =>
-                operand := '0' & data;
-                result := akku OR operand;
-                akku <= result;
+            when C_AND =>
+                operand := data;
+                result := '0' & (akku AND operand);
+                akku <= result(datawidth-1 downto 0);
                 
-            when CMD_INV =>
-                result := '0' & not akku(datawidth-1 downto 0);     
-                akku <= result;
+            when C_OR =>
+                operand := data;
+                result := '0' & (akku OR operand);
+                akku <= result(datawidth-1 downto 0);
+                
+            when C_INV =>
+                result := '0' & (not akku);     
+                akku <= result(datawidth-1 downto 0);
                 
             when others =>
                 assert false report "No valid Command" severity error;
@@ -149,33 +162,33 @@ begin
         
         -- Carry
         if (UPDATE_CARRY = '1') then
-            Carry_F <= result(datawidth);                  
+            carry <= result(datawidth);                  
         end if;
         
         -- Zero  
         if (UPDATE_ZERO = '1') then                          
             if (result(datawidth-1 downto 0) = (result'range => '0')) then
-                Zero_F <= '1';
+                zero <= '1';
             else
-                Zero_F <= '0';
+                zero <= '0';
             end if;
         end if;
         
         -- Negative
         if(UPDATE_NEGATIVE = '1') then            
-            Negative_F <= result(datawidth-1);
+            negative <= result(datawidth-1);
         end if;
         
         -- Overflow
         if (UPDATE_OVERFLOW = '1') then
-            if (akku(datawidth-1) = '0' AND operand(datawidth-1) = '0' AND result(datawidth-1) = '1') then
+            if (akku(datawidth-2) = '0' AND operand(datawidth-2) = '0' AND result(datawidth-1) = '1') then
                 -- Adding two positives should be positive
-                Overflow_F <= '1';
-            elsif (akku(datawidth-1) = '1' AND operand(datawidth-1) = '1' AND result(datawidth-1) = '0') then
+                overflow <= '1';
+            elsif (akku(datawidth-2) = '1' AND operand(datawidth-2) = '1' AND result(datawidth-1) = '0') then
                 -- Adding two negatives should be negative
-                Overflow_F <= '1';
+                overflow <= '1';
             else
-                Overflow_F <= '0';
+                overflow <= '0';
             end if;
         end if;       
              
