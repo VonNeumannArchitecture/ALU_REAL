@@ -181,10 +181,10 @@ begin
         
         -- Overflow
         if (UPDATE_OVERFLOW = '1') then
-            if (akku(datawidth-2) = '0' AND operand(datawidth-2) = '0' AND result(datawidth-1) = '1') then
+            if (akku(datawidth-1) = '0' AND operand(datawidth-1) = '0' AND result(datawidth-1) = '1') then
                 -- Adding two positives should be positive
                 overflow <= '1';
-            elsif (akku(datawidth-2) = '1' AND operand(datawidth-2) = '1' AND result(datawidth-1) = '0') then
+            elsif (akku(datawidth-1) = '1' AND operand(datawidth-1) = '1' AND result(datawidth-1) = '0') then
                 -- Adding two negatives should be negative
                 overflow <= '1';
             else
